@@ -263,7 +263,7 @@ def _generate_image_and_label_batch(image, label, min_queue_examples,
 
     # Display the training images in the visualizer.
     reshaped_images = tf.reshape(images, [-1, HEIGHT, WIDTH, DEPTH])
-    tf.summary.image('images', reshaped_images)
+    tf.summary.image('batch_images', tensor=reshaped_images)
 
     return images, tf.reshape(label_batch, [batch_size])
 
@@ -284,7 +284,7 @@ def distorted_inputs(filenames, batch_size):
         if not tf.gfile.Exists(f):
             raise ValueError('Failed to find file: ' + f)
 
-    with tf.name_scope('input'):
+    with tf.variable_scope('input'):
         # Create a queue that produces the filenames to read.
         filename_queue = tf.train.string_input_producer(string_tensor=filenames)
 
@@ -349,7 +349,7 @@ def inputs(filenames, batch_size):
         if not tf.gfile.Exists(f):
             raise ValueError('Failed to find file: ' + f)
 
-    with tf.name_scope('input'):
+    with tf.variable_scope('input'):
         # Create a queue that produces the filenames to read.
         filename_queue = tf.train.string_input_producer(string_tensor=filenames)
 

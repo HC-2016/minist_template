@@ -101,7 +101,7 @@ def evaluate(type):
 
             summary = tf.Summary()
             summary.ParseFromString(sess.run(summary_op))
-            summary.value.add(tag=type+'_Precision @ 1', simple_value=precision)
+            summary.value.add(tag='Precision_'+type+'@ 1', simple_value=precision)
             summary_writer.add_summary(summary, global_step)
 
             coord.request_stop()
@@ -129,9 +129,6 @@ def train():
 
         # Add to the Graph the Ops that calculate and apply gradients.
         train_op = mnist.train_func(data_num=mnist_input.TRAIN_DATA_NUM, total_loss=total_loss, global_step=global_step)
-
-        # Add the Op to compare the logits to the labels during evaluation.
-        # eval_correct =mnist.evaluation(logits, labels)
 
         # Create a saver for writing training checkpoints.
         saver = tf.train.Saver()
@@ -171,7 +168,7 @@ def train():
                     summary_writer.flush()
 
                 # Save a checkpoint and evaluate the model periodically.
-                if step % 500 == 0 or (step + 1) == mnist.MAX_STEPS:
+                if step > 0 and (step % 500 == 0 or (step + 1) == mnist.MAX_STEPS):
                     checkpoint_file = os.path.join(mnist_input.LOG_DIR, 'model.ckpt')
                     saver.save(sess, checkpoint_file, global_step=step)
 

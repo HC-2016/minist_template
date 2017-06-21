@@ -7,17 +7,17 @@
 
 Summary of available functions:
 
- # Compute input images and labels for training. 
- inputs, labels = distorted_inputs()
+# Compute input images and labels for training. 
+inputs, labels = distorted_inputs()
 
- # Compute inference on the model inputs to make a prediction.
- predictions = inference(images)
+# Compute inference on the model inputs to make a prediction.
+predictions = inference(images)
 
- # Compute the total loss of the prediction with respect to the labels.
- loss = loss_func(predictions, labels)
+# Compute the total loss of the prediction with respect to the labels.
+loss = loss_func(predictions, labels)
 
- # Create a graph to run one step of training with respect to the loss.
- train_op = train_func(loss, global_step)
+# Create a graph to run one step of training with respect to the loss.
+train_op = train_func(loss, global_step)
 """
 
 import os
@@ -88,12 +88,14 @@ def _activation_summary(x):
     Args:
         :param x: Tensor
     """
-    # Remove 'tower_[0-9]/' from the name in case this is a multi-GPU training
-    # session. This helps the clarity of presentation on tensorboard.
-    tensor_name = re.sub('%s_[0-9]*/' % TOWER_NAME, '', x.op.name)
-    tf.summary.histogram(tensor_name + '/activations', x)
-    tf.summary.scalar(tensor_name + '/sparsity',
-                                       tf.nn.zero_fraction(x))
+    # # Remove 'tower_[0-9]/' from the name in case this is a multi-GPU training
+    # # session. This helps the clarity of presentation on tensorboard.
+    # tensor_name = re.sub('%s_[0-9]*/' % TOWER_NAME, '', x.op.name)
+    # tf.summary.histogram(tensor_name + '/activations', x)
+    # tf.summary.scalar(tensor_name + '/sparsity',
+    #                                    tf.nn.zero_fraction(x))
+    tf.summary.histogram('activations', x)
+    tf.summary.scalar('sparsity', tf.nn.zero_fraction(x))
 
 
 def inference(images, hidden1_units, hidden2_units, wd):
@@ -111,7 +113,7 @@ def inference(images, hidden1_units, hidden2_units, wd):
     # Hidden 1
     weights_initializer = tf.truncated_normal_initializer(
         stddev=1.0 / numpy.sqrt(float(mnist_input.HEIGHT * mnist_input.WIDTH * mnist_input.DEPTH)))
-    with tf.variable_scope('hidden1'):
+    with tf.variable_scope('Layer_hidden1'):
         weights = tf.get_variable(name='weights',
                                   shape=[mnist_input.HEIGHT * mnist_input.WIDTH * mnist_input.DEPTH, hidden1_units],
                                   initializer=weights_initializer, dtype=DATA_TYPE)
@@ -126,7 +128,7 @@ def inference(images, hidden1_units, hidden2_units, wd):
 
     # Hidden 2
     weights_initializer = tf.truncated_normal_initializer(stddev=1.0 / numpy.sqrt(float(hidden1_units)))
-    with tf.variable_scope('hidden2'):
+    with tf.variable_scope('Layer_hidden2'):
         weights = tf.get_variable(name='weights', shape=[hidden1_units, hidden2_units],
                                   initializer=weights_initializer, dtype=DATA_TYPE)
         biases = tf.get_variable(name='biases', shape=[hidden2_units],
@@ -140,7 +142,7 @@ def inference(images, hidden1_units, hidden2_units, wd):
 
     # Linear
     weights_initializer = tf.truncated_normal_initializer(stddev=1.0 / numpy.sqrt(float(hidden2_units)))
-    with tf.variable_scope('softmax_linear'):
+    with tf.variable_scope('Layer_linear'):
         weights = tf.get_variable(name='weights', shape=[hidden2_units, mnist_input.NUM_CLASSES],
                                   initializer=weights_initializer, dtype=DATA_TYPE)
         biases = tf.get_variable(name='biases', shape=[mnist_input.NUM_CLASSES],
@@ -169,14 +171,15 @@ def loss_func(logits, labels):
     """
     # Calculate the average cross entropy loss across the batch.
     labels = tf.cast(labels, tf.int64)
-    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        labels=labels, logits=logits, name='cross_entropy_per_example')
-    cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
-    tf.add_to_collection('losses', cross_entropy_mean)
+    with tf.variable_scope('Loss'):
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            labels=labels, logits=logits, name='cross_entropy_per_example')
+        cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
+        tf.add_to_collection('losses', cross_entropy_mean)
 
-    # The total loss is defined as the cross entropy loss plus all of the weight
-    # decay terms (L2 loss).
-    return tf.add_n(tf.get_collection('losses'), name='total_loss')
+        # The total loss is defined as the cross entropy loss plus all of the weight
+        # decay terms (L2 loss).
+        return tf.add_n(tf.get_collection('losses'), name='total_loss')
 
 
 def _add_loss_summaries(total_loss):
@@ -201,8 +204,8 @@ def _add_loss_summaries(total_loss):
     for l in losses + [total_loss]:
         # Name each loss as '(raw)' and name the moving average version of the loss
         # as the original loss name.
-        tf.summary.scalar(l.op.name + ' (raw)', l)
-        tf.summary.scalar(l.op.name, loss_averages.average(l))
+        tf.summary.scalar(l.op.name + '_raw', l)
+        # tf.summary.scalar(l.op.name + '_average', loss_averages.average(l))
 
     return loss_averages_op
 
