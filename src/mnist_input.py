@@ -331,3 +331,43 @@ def distorted_inputs(filenames, batch_size):
         return _generate_image_and_label_batch(image=distorted_image, label=label,
                                                min_queue_examples=min_queue_examples, batch_size=batch_size,
                                                shuffle=True)
+
+
+def inputs(filenames, batch_size):
+    """Construct input without distortion for MNIST using the Reader ops.
+
+    Args:
+        :param filenames: list - [str1, str2, ...].
+        :param batch_size: int. 
+
+    Returns:
+       :returns: tuple - (images, labels).
+                images: tensors - [batch_size, height*width*depth].
+                lables: tensors - [batch_size].
+    """
+    for f in filenames:
+        if not tf.gfile.Exists(f):
+            raise ValueError('Failed to find file: ' + f)
+
+    with tf.name_scope('input'):
+        # Create a queue that produces the filenames to read.
+        filename_queue = tf.train.string_input_producer(string_tensor=filenames)
+
+        # Even when reading in multiple threads, share the filename
+        # queue.
+        result = read_and_decode(filename_queue)
+
+        # Convert from [0, 255] -> [-0.5, 0.5] floats.
+        image = tf.cast(result.image, tf.float32) * (1. / 255) - 0.5
+
+        label = result.label
+
+        # Ensure that the random shuffling has good mixing properties.
+        min_queue_examples = 1000
+        print('Filling queue with %d mnist images before starting to train or validation. '
+              'This will take a few minutes.' % min_queue_examples)
+
+        # Generate a batch of images and labels by building up a queue of examples.
+        return _generate_image_and_label_batch(image=image, label=label,
+                                               min_queue_examples=min_queue_examples, batch_size=batch_size,
+                                               shuffle=True)
