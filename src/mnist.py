@@ -44,9 +44,12 @@ DATA_TYPE = tf.float32
 TOWER_NAME = 'tower'
 
 
-def distorted_inputs():
+def distorted_inputs(filenames):
     """Construct distorted input for MNIST training using the Reader ops.
     
+    Args:
+        :param filenames: list - [name1, name2, ...]
+        
     Returns:
         :return images: Images. 4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE, 3] size.
         :return labels: Labels. 1D tensor of [batch_size] size.
@@ -54,11 +57,27 @@ def distorted_inputs():
     Raises:
         :exception ValueError: If no data_dir
     """
-    filenames = [os.path.join(mnist_input.DATA_DIR, 'train.tfrecords')]
     images, labels = mnist_input.distorted_inputs(filenames=filenames, batch_size=BATCH_SIZE)
 
     return images, labels
 
+
+def inputs(filenames):
+    """Construct input without distortion for MNIST using the Reader ops.
+    
+    Args:
+        :param filenames: list - [name1, name2, ...]
+        
+    Returns:
+        :return images: Images. 4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE, 3] size.
+        :return labels: Labels. 1D tensor of [batch_size] size.
+
+    Raises:
+        :exception ValueError: If no data_dir
+    """
+    images, labels = mnist_input.inputs(filenames=filenames, batch_size=BATCH_SIZE)
+
+    return images, labels
 
 def _activation_summary(x):
     """Helper to create summaries for activations.
@@ -230,53 +249,3 @@ def train_func(data_num, total_loss, global_step):
         train_op = tf.no_op(name='train')
 
     return train_op
-
-
-# def evaluation(logits, labels):
-#   """Evaluate the quality of the logits at predicting the label.
-#
-#   Args:
-#     logits: Logits tensor, float - [batch_size, NUM_CLASSES].
-#     labels: Labels tensor, int32 - [batch_size], with values in the
-#       range [0, NUM_CLASSES).
-#
-#   Returns:
-#     A scalar int32 tensor with the number of examples (out of batch_size)
-#     that were predicted correctly.
-#   """
-#   # For a classifier model, we can use the in_top_k Op.
-#   # It returns a bool tensor with shape [batch_size] that is true for
-#   # the examples where the label is in the top k (here k=1)
-#   # of all logits for that example.
-#   correct = tf.nn.in_top_k(logits, labels, 1)
-#   # Return the number of true entries.
-#   return tf.reduce_sum(tf.cast(correct, tf.int32))
-#
-#
-# def do_eval(sess,
-#             eval_correct,
-#             images_placeholder,
-#             labels_placeholder,
-#             data_set):
-#   """Runs one evaluation against the full epoch of data.
-#
-#   Args:
-#     sess: The session in which the model has been trained.
-#     eval_correct: The Tensor that returns the number of correct predictions.
-#     images_placeholder: The images placeholder.
-#     labels_placeholder: The labels placeholder.
-#     data_set: The set of images and labels to evaluate, from
-#       input_data.read_data_sets().
-#   """
-#   # And run one epoch of eval.
-#   true_count = 0  # Counts the number of correct predictions.
-#   steps_per_epoch = data_set.num_examples // FLAGS.batch_size
-#   num_examples = steps_per_epoch * FLAGS.batch_size
-#   for step in range(steps_per_epoch):
-#     feed_dict = fill_feed_dict(data_set,
-#                                images_placeholder,
-#                                labels_placeholder)
-#     true_count += sess.run(eval_correct, feed_dict=feed_dict)
-#   precision = float(true_count) / num_examples
-#   print('  Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
-#         (num_examples, true_count, precision))
