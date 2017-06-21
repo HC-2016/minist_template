@@ -24,11 +24,88 @@ The code is refered from the following codes:
 import os
 import time
 
-import mnist
+from src import mnist
 import numpy
 import tensorflow as tf
 
 from src import mnist_input
+
+
+def evaluate(type):
+    """ Eval MNIST for a number of steps."
+    
+    :param type: str - 'train'/'val'/'test'
+    """
+    assert type in ['train', 'val', 'test']
+
+    with tf.Graph().as_default() as g:
+        # Input images and labels.
+        if type == 'train':
+            filenames = [os.path.join(mnist_input.DATA_DIR, 'validation.tfrecords')]
+            num_data = mnist_input.TRAIN_DATA_NUM
+        elif type == 'val':
+            filenames = [os.path.join(mnist_input.DATA_DIR, 'validation.tfrecords')]
+            num_data = mnist_input.VAL_DATA_NUM
+        elif type == 'test':
+            filenames = [os.path.join(mnist_input.DATA_DIR, 'test.tfrecords')]
+            num_data = mnist_input.TEST_DATA_NUM
+
+        images, labels = mnist.inputs(filenames=filenames)
+
+        # Build a Graph that computes the logits predictions from the
+        # inference model.
+        logits = mnist.inference(images, hidden1_units=128, hidden2_units=32, wd=0.0)
+
+        # Calculate predictions.
+        top_k_op = tf.nn.in_top_k(logits, labels, 1)
+
+        # Restore the moving average version of the learned variables for eval.
+        variable_averages = tf.train.ExponentialMovingAverage(
+            mnist.MOVING_AVERAGE_DECAY)
+        variables_to_restore = variable_averages.variables_to_restore()
+        saver = tf.train.Saver(variables_to_restore)
+
+        # Build the summary operation based on the TF collection of Summaries.
+        summary_op = tf.summary.merge_all()
+        summary_writer = tf.summary.FileWriter(os.path.join(mnist_input.LOG_DIR, type), g)
+
+        with tf.Session() as sess:
+            ckpt = tf.train.get_checkpoint_state(mnist_input.LOG_DIR)
+            if ckpt and ckpt.model_checkpoint_path:
+                # Restores from checkpoint
+                saver.restore(sess, ckpt.model_checkpoint_path)
+                # Assuming model_checkpoint_path looks something like:
+                #   /my-favorite-path/cifar10_train/model.ckpt-0,
+                # extract global_step from it.
+                global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
+            else:
+                print('No checkpoint file found')
+                return
+
+            # Start the queue runners.
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+            num_iter = int(numpy.ceil(num_data / mnist.BATCH_SIZE))
+            true_count = 0  # Counts the number of correct predictions.
+            total_sample_count = num_iter * mnist.BATCH_SIZE
+            step = 0
+            while step < num_iter and not coord.should_stop():
+                predictions = sess.run([top_k_op])
+                true_count += numpy.sum(predictions)
+                step += 1
+
+            # Compute precision @ 1.
+            precision = true_count / total_sample_count
+            print('%s:\t precision @ 1 = %.3f' % (type, precision))
+
+            summary = tf.Summary()
+            summary.ParseFromString(sess.run(summary_op))
+            summary.value.add(tag=type+'_Precision @ 1', simple_value=precision)
+            summary_writer.add_summary(summary, global_step)
+
+            coord.request_stop()
+            coord.join(threads)
 
 
 def train():
@@ -41,7 +118,8 @@ def train():
             initializer=tf.constant_initializer(0), trainable=False)
 
         # Input images and labels.
-        images, labels = mnist.distorted_inputs()
+        filenames = [os.path.join(mnist_input.DATA_DIR, 'train.tfrecords')]
+        images, labels = mnist.distorted_inputs(filenames)
 
         # Build a Graph that computes predictions from the inference model.
         logits = mnist.inference(images, hidden1_units=128, hidden2_units=32, wd=0.0)
@@ -93,33 +171,18 @@ def train():
                     summary_writer.flush()
 
                 # Save a checkpoint and evaluate the model periodically.
-                if (step + 1) % 1000 == 0 or (step + 1) == mnist.MAX_STEPS:
+                if step % 500 == 0 or (step + 1) == mnist.MAX_STEPS:
                     checkpoint_file = os.path.join(mnist_input.LOG_DIR, 'model.ckpt')
                     saver.save(sess, checkpoint_file, global_step=step)
-                    # # Evaluate against the training set.
-                    # print('Training Data Eval:')
-                    # do_eval(sess,
-                    #         eval_correct,
-                    #         images_placeholder,
-                    #         labels_placeholder,
-                    #         data_sets.train)
-                    # # Evaluate against the validation set.
-                    # print('Validation Data Eval:')
-                    # do_eval(sess,
-                    #         eval_correct,
-                    #         images_placeholder,
-                    #         labels_placeholder,
-                    #         data_sets.validation)
-                    # # Evaluate against the test set.
-                    # print('Test Data Eval:')
-                    # do_eval(sess,
-                    #         eval_correct,
-                    #         images_placeholder,
-                    #         labels_placeholder,
-                    #         data_sets.test)
+
+                    evaluate(type='train')
+                    evaluate(type='val')
+
 
             coord.request_stop()
             coord.join(threads)
+
+            evaluate(type='test')
 
 
 if __name__ == '__main__':
