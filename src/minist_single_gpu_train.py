@@ -15,10 +15,13 @@ This program trains a fully-connection network on MNIST, It involves the followi
         3.4 train
         3.5 evaluate
     4. save the model
-    
+
 The code is refered from the following codes:
     1. models-master\tutorials\image\cifar10.
     2. tensorflow-master\tensorflow\examples\tutorials\mnist\fully_connected_feed.py.
+    
+# visulization on TensorBoard 
+$ tensorboard --logdir logs 
 """
 
 import os
@@ -38,7 +41,8 @@ def evaluate(type):
     """
     assert type in ['train', 'val', 'test']
 
-    with tf.Graph().as_default() as g:
+    graph = tf.Graph()
+    with graph.as_default() as g:
         # Input images and labels.
         if type == 'train':
             filenames = [os.path.join(mnist_input.DATA_DIR, 'validation.tfrecords')]
@@ -69,48 +73,49 @@ def evaluate(type):
         summary_op = tf.summary.merge_all()
         summary_writer = tf.summary.FileWriter(os.path.join(mnist_input.LOG_DIR, type), g)
 
-        with tf.Session() as sess:
-            ckpt = tf.train.get_checkpoint_state(mnist_input.LOG_DIR)
-            if ckpt and ckpt.model_checkpoint_path:
-                # Restores from checkpoint
-                saver.restore(sess, ckpt.model_checkpoint_path)
-                # Assuming model_checkpoint_path looks something like:
-                #   /my-favorite-path/cifar10_train/model.ckpt-0,
-                # extract global_step from it.
-                global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
-            else:
-                print('No checkpoint file found')
-                return
+    with tf.Session(graph=graph) as sess:
+        ckpt = tf.train.get_checkpoint_state(mnist_input.LOG_DIR)
+        if ckpt and ckpt.model_checkpoint_path:
+            # Restores from checkpoint
+            saver.restore(sess, ckpt.model_checkpoint_path)
+            # Assuming model_checkpoint_path looks something like:
+            #   /my-favorite-path/cifar10_train/model.ckpt-0,
+            # extract global_step from it.
+            global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
+        else:
+            print('No checkpoint file found')
+            return
 
-            # Start the queue runners.
-            coord = tf.train.Coordinator()
-            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        # Start the queue runners.
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-            num_iter = int(numpy.ceil(num_data / mnist.BATCH_SIZE))
-            true_count = 0  # Counts the number of correct predictions.
-            total_sample_count = num_iter * mnist.BATCH_SIZE
-            step = 0
-            while step < num_iter and not coord.should_stop():
-                predictions = sess.run([top_k_op])
-                true_count += numpy.sum(predictions)
-                step += 1
+        num_iter = int(numpy.ceil(num_data / mnist.BATCH_SIZE))
+        true_count = 0  # Counts the number of correct predictions.
+        total_sample_count = num_iter * mnist.BATCH_SIZE
+        step = 0
+        while step < num_iter and not coord.should_stop():
+            predictions = sess.run([top_k_op])
+            true_count += numpy.sum(predictions)
+            step += 1
 
-            # Compute precision @ 1.
-            precision = true_count / total_sample_count
-            print('%s:\t precision @ 1 = %.3f' % (type, precision))
+        # Compute precision @ 1.
+        precision = true_count / total_sample_count
+        print('%s:\t precision @ 1 = %.3f' % (type, precision))
 
-            summary = tf.Summary()
-            summary.ParseFromString(sess.run(summary_op))
-            summary.value.add(tag='Precision_'+type+'@ 1', simple_value=precision)
-            summary_writer.add_summary(summary, global_step)
+        summary = tf.Summary()
+        summary.ParseFromString(sess.run(summary_op))
+        summary.value.add(tag='Precision_'+type+'@ 1', simple_value=precision)
+        summary_writer.add_summary(summary, global_step)
 
-            coord.request_stop()
-            coord.join(threads)
+        coord.request_stop()
+        coord.join(threads)
 
 
 def train():
     """Train MNIST for a number of steps."""
-    with tf.Graph().as_default():
+    graph = tf.Graph()
+    with graph.as_default():
         # Create a variable to count the number of train() calls. For multi-GPU programs, this equals the
         # number of batches processed * num_gpus.
         global_step = tf.get_variable(
@@ -140,46 +145,46 @@ def train():
         init_op = tf.group(tf.global_variables_initializer(),
                            tf.local_variables_initializer())
 
-        with tf.Session() as sess:
-            # Initialize the variables (the trained variables and the epoch counter).
-            sess.run(init_op)
+    with tf.Session(graph=graph) as sess:
+        # Initialize the variables (the trained variables and the epoch counter).
+        sess.run(init_op)
 
-            # Start input enqueue threads.
-            coord = tf.train.Coordinator()
-            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+        # Start input enqueue threads.
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-            # Instantiate a SummaryWriter to output summaries and the Graph.
-            summary_writer = tf.summary.FileWriter(mnist_input.LOG_DIR, sess.graph)
+        # Instantiate a SummaryWriter to output summaries and the Graph.
+        summary_writer = tf.summary.FileWriter(mnist_input.LOG_DIR, sess.graph)
 
-            # Start the training loop.
-            for step in range(mnist.MAX_STEPS):
-                start_time = time.time()
-                _, loss_value = sess.run([train_op, total_loss])
-                duration = time.time() - start_time
-                assert not numpy.isnan(loss_value), 'Model diverged with loss = NaN'
+        # Start the training loop.
+        for step in range(mnist.MAX_STEPS):
+            start_time = time.time()
+            _, loss_value = sess.run([train_op, total_loss])
+            duration = time.time() - start_time
+            assert not numpy.isnan(loss_value), 'Model diverged with loss = NaN'
 
-                # Write the summaries and print an overview fairly often.
-                if step % 100 == 0:
-                    # Print status to stdout.
-                    print('Step %d: loss = %.2f (%.3f sec)' % (step, loss_value, duration))
-                    # Update the events file.
-                    summary_str = sess.run(summary_op)
-                    summary_writer.add_summary(summary_str, step)
-                    summary_writer.flush()
+            # Write the summaries and print an overview fairly often.
+            if step % 100 == 0:
+                # Print status to stdout.
+                print('Step %d: loss = %.2f (%.3f sec)' % (step, loss_value, duration))
+                # Update the events file.
+                summary_str = sess.run(summary_op)
+                summary_writer.add_summary(summary_str, step)
+                summary_writer.flush()
 
-                # Save a checkpoint and evaluate the model periodically.
-                if step > 0 and (step % 500 == 0 or (step + 1) == mnist.MAX_STEPS):
-                    checkpoint_file = os.path.join(mnist_input.LOG_DIR, 'model.ckpt')
-                    saver.save(sess, checkpoint_file, global_step=step)
+            # Save a checkpoint and evaluate the model periodically.
+            if step > 0 and (step % 500 == 0 or (step + 1) == mnist.MAX_STEPS):
+                checkpoint_file = os.path.join(mnist_input.LOG_DIR, 'model.ckpt')
+                saver.save(sess, checkpoint_file, global_step=step)
 
-                    evaluate(type='train')
-                    evaluate(type='val')
+                evaluate(type='train')
+                evaluate(type='val')
 
 
-            coord.request_stop()
-            coord.join(threads)
+        coord.request_stop()
+        coord.join(threads)
 
-            evaluate(type='test')
+        evaluate(type='test')
 
 
 if __name__ == '__main__':

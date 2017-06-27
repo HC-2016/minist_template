@@ -20,8 +20,6 @@ loss = loss_func(predictions, labels)
 train_op = train_func(loss, global_step)
 """
 
-import os
-import re
 
 import numpy
 import tensorflow as tf
